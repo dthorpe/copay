@@ -17,6 +17,10 @@ html, body {height: 100%;}
   overflow:auto;
 	padding-bottom: 91px;}  /* must be same height as the footer */
 
+.main-home {
+  padding-bottom: 28px !important;
+}
+
 #footer {
   position: fixed;
 	margin-top: -96px; /* negative value of footer height */
@@ -25,6 +29,13 @@ html, body {height: 100%;}
   padding: 5px 2rem;
   bottom: 0;
   width: 100%;
+  z-index: 100;
+}
+
+.footer-home {
+  position: relative !important;
+  margin-top: -28px !important;
+	height: 28px !important;
 }
 
 .bottom-copay {
@@ -195,7 +206,7 @@ span.panel-res {
 
 .line-dashed {
   border-top: 2px dashed #ccc;
-  margin: 3rem 0;
+  margin: 1rem 0;
   padding: 1rem 0;
 }
 
@@ -267,9 +278,6 @@ hr { margin: 2.25rem 0;}
 .lh {line-height: 0;}
 .oh {overflow:hidden;}
 .lh {line-height: 0;}
-.signin input.ng-dirty.ng-invalid { 
-  border: 2px red solid;
-}
 
 .video-small {
   width: 80px;
@@ -279,10 +287,15 @@ hr { margin: 2.25rem 0;}
   float: right;
 }
 .online {
-  border: 3px solid green;
+  background-color: black;
+  border: 3px solid #1ABC9C;
+}
+.online:hover {
+  border-color: #16A085;
 }
 .offline {
   border: 3px solid gray;
+  opacity: 0.4;
 }
 
 .tx-copayers {
@@ -428,5 +441,40 @@ hr { margin: 2.25rem 0;}
 
 a.loading {
   background: #fff;
+}
+
+#qr-canvas { display: none; }
+#qrcode-scanner-video {
+  display: block;
+  margin: 0 auto;
+}
+
+@keyframes rotateThis {
+	from { transform: scale( 1 ) rotate( 0deg );   }
+	to   { transform: scale( 1 ) rotate( 360deg ); }
+}
+
+@-webkit-keyframes rotateThis {
+	from { -webkit-transform: scale( 1 ) rotate( 0deg );   }
+	to   { -webkit-transform: scale( 1 ) rotate( 360deg ); }
+}
+
+.icon-rotate {
+	animation-name: rotateThis;
+	animation-duration: 2s;
+	animation-iteration-count: infinite;
+	animation-timing-function: linear;
+	-webkit-animation-name: rotateThis;
+  -webkit-animation-duration: 2s;
+  -webkit-animation-iteration-count: infinite;
+  -webkit-animation-timing-function: linear;
+}
+
+.spinner {
+ display:inline-block; 
+ width: 1em; 
+ text-align:center; 
+ line-height:1em; 
+ vertical-align:middle
 }
 
