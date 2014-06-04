@@ -2,7 +2,7 @@
 
 //Setting up route
 angular
-  .module('copay')
+  .module('copayApp')
   .config(function($routeProvider) {
 
     $routeProvider
@@ -42,6 +42,13 @@ angular
         templateUrl: 'backup.html',
         validate: true
       })
+      .when('/settings', {
+        templateUrl: 'settings.html',
+        validate: false
+      })
+      .when('/unsupported', {
+        templateUrl: 'unsupported.html'
+      })
       .otherwise({
         templateUrl: '404.html'
       });
@@ -49,7 +56,7 @@ angular
 
 //Setting HTML5 Location Mode
 angular
-  .module('copay')
+  .module('copayApp')
   .config(function($locationProvider) {
     $locationProvider
       .html5Mode(false);
@@ -57,8 +64,17 @@ angular
   })
   .run(function($rootScope, $location) {
     $rootScope.$on('$routeChangeStart', function(event, next, current) {
-      if ((!$rootScope.wallet || !$rootScope.wallet.id) && next.validate) {
-        $location.path('signin');
+
+      if (!util.supports.data) {
+        $location.path('unsupported');
+      }  
+      else {
+        if ((!$rootScope.wallet || !$rootScope.wallet.id) && next.validate) {
+          $location.path('signin');
+        }
       }
     });
+  })
+  .config(function($compileProvider) {
+    $compileProvider.aHrefSanitizationWhitelist(/^\s*(https?|ftp|mailto|file|tel|chrome-extension|resource):/);
   });

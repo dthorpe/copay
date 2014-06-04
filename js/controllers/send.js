@@ -1,6 +1,6 @@
 'use strict';
 
-angular.module('copay.send').controller('SendController',
+angular.module('copayApp.controllers').controller('SendController',
   function($scope, $rootScope, $window, $location, $timeout) {
     $scope.title = 'Send';
     $scope.loading = false;
@@ -28,10 +28,7 @@ angular.module('copay.send').controller('SendController',
     };
 
     // Detect protocol
-    $scope.isHttp = function() {
-      var protocol = $window.location.protocol;
-      return (protocol.indexOf('http') === 0);
-    };
+    $scope.isHttp = ($window.location.protocol.indexOf('http') === 0);
 
     navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
     window.URL = window.URL || window.webkitURL || window.mozURL || window.msURL;
@@ -42,7 +39,7 @@ angular.module('copay.send').controller('SendController',
 
     $scope.submitForm = function(form) {
       if (form.$invalid) {
-        $rootScope.flashMessage = { message: 'You can not send a proposal transaction. Please, try again', type: 'error'};
+        $rootScope.$flashMessage = { message: 'You can not send a proposal transaction. Please, try again', type: 'error'};
         return;
       }
 
@@ -52,10 +49,9 @@ angular.module('copay.send').controller('SendController',
       var amount = (form.amount.$modelValue * 100000000).toString(); // satoshi to string
 
       var w = $rootScope.wallet;
-      w.createTx( address, amount,function() {
-
+      w.createTx(address, amount,function() {
         $scope.loading = false;
-        $rootScope.flashMessage = { message: 'The transaction proposal has been created', type: 'success'};
+        $rootScope.$flashMessage = { message: 'The transaction proposal has been created', type: 'success'};
         $rootScope.$digest();
       });
 
@@ -97,7 +93,7 @@ angular.module('copay.send').controller('SendController',
                   //alert(JSON.stringify(qrcode.process(context)));
                   qrcode.decode();
                 } catch (e) {
-                  alert(e);
+                  // error decoding QR
                 }
               }, 1500);
             };
@@ -139,7 +135,6 @@ angular.module('copay.send').controller('SendController',
     };
 
     var _videoError = function(err) {
-      console.log('Video Error: ' + JSON.stringify(err));
       _scanStop();
     };
 
@@ -147,7 +142,6 @@ angular.module('copay.send').controller('SendController',
       _scanStop();
 
       var str = (data.indexOf('bitcoin:') === 0) ? data.substring(8) : data;
-      console.log('QR code detected: ' + str);
       $scope.$apply(function() {
         $scope.address = str;
       });

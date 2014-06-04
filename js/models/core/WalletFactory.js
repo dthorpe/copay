@@ -13,15 +13,12 @@ var Wallet = require('./Wallet');
 /*
  * WalletFactory
  *
- *
- * var wallet = WF.read(config,walletId); -> always go to storage
- * var wallet = WF.create(config,walletId); -> create wallets, with the given ID (or random is not given)
- *
- * var wallet = WF.open(config,walletId); -> try to read walletId, if fails, create a new wallet with that id
  */
 
-function WalletFactory(config) {
+function WalletFactory(config, version) {
   var self = this;
+  config = config || {};
+
   this.storage = new Storage(config.storage);
   this.network = new Network(config.network);
   this.blockchain = new Blockchain(config.blockchain);
@@ -29,51 +26,40 @@ function WalletFactory(config) {
   this.networkName = config.networkName;
   this.verbose     = config.verbose;
   this.walletDefaults = config.wallet;
+  this.version     = version;
 }
 
 WalletFactory.prototype.log = function(){
   if (!this.verbose) return;
-  if (console)
-        console.log.apply(console, arguments);
+  if (console) {
+    console.log.apply(console, arguments);
+  }
 };
 
 
 WalletFactory.prototype._checkRead = function(walletId) {
   var s = this.storage;
   var ret = 
-    (
       s.get(walletId, 'publicKeyRing') &&
       s.get(walletId, 'txProposals')   &&
       s.get(walletId, 'opts') &&
-      s.get(walletId, 'privateKey')
-    )?true:false;
-  ;
-  return ret?true:false;
+      s.get(walletId, 'privateKey');
+  return !!ret;
 };
 
 WalletFactory.prototype.fromObj = function(obj) {
   var w = Wallet.fromObj(obj, this.storage, this.network, this.blockchain);
   w.verbose = this.verbose;
-
-  // JIC: Add our key
-  try {
-    w.publicKeyRing.addCopayer(
-      w.privateKey.getExtendedPublicKeyString()
-    );
-  } catch (e) {
-    // No really an error, just to be sure.
-  }
-  this.log('### WALLET OPENED:', w.id);
-
-  // store imported wallet
-  w.store();
   return w;
 };
 
 WalletFactory.prototype.fromEncryptedObj = function(base64, password) {
   this.storage._setPassphrase(password);
   var walletObj = this.storage.import(base64);
-  return this.fromObj(walletObj);
+  if (!walletObj) return false;
+  var w = this.fromObj(walletObj);
+  if (!w) return false;
+  return w;
 };
 
 WalletFactory.prototype.read = function(walletId) {
@@ -102,7 +88,6 @@ WalletFactory.prototype.create = function(opts) {
 
   opts.privateKey = opts.privateKey ||  new PrivateKey({ networkName: this.networkName });
 
-
   var requiredCopayers = opts.requiredCopayers || this.walletDefaults.requiredCopayers;
   var totalCopayers =  opts.totalCopayers || this.walletDefaults.totalCopayers;
 
@@ -111,7 +96,9 @@ WalletFactory.prototype.create = function(opts) {
     requiredCopayers: requiredCopayers,
     totalCopayers: totalCopayers,
   });
-  opts.publicKeyRing.addCopayer(opts.privateKey.getExtendedPublicKeyString(), opts.nickname);
+  opts.publicKeyRing.addCopayer(
+    opts.privateKey.deriveBIP45Branch().extendedPublicKeyString(),
+    opts.nickname);
   this.log('\t### PublicKeyRing Initialized');
 
   opts.txProposals = opts.txProposals || new TxProposals({
@@ -127,11 +114,29 @@ WalletFactory.prototype.create = function(opts) {
   opts.verbose = this.verbose;
 
   opts.spendUnconfirmed = opts.spendUnconfirmed || this.walletDefaults.spendUnconfirmed;
+  opts.reconnectDelay = opts.reconnectDelay || this.walletDefaults.reconnectDelay;
   opts.requiredCopayers = requiredCopayers;
   opts.totalCopayers = totalCopayers;
+  opts.version       = opts.version || this.version;
   var w = new Wallet(opts);
   w.store();
   return w;
+};
+
+
+WalletFactory.prototype._checkVersion = function(inVersion) {
+  var thisV = this.version.split('.');
+  var thisV0 = parseInt(thisV[0]);
+  var inV   = inVersion.split('.');
+  var inV0  = parseInt(inV[0]);
+
+  //We only check for major version differences
+  if( thisV0 < inV0 ) {
+    throw new Error('Major difference in software versions' +
+                    '. Received:' + inVersion +
+                    '. Current version:' + this.version +
+                    '. Aborting.');
+  }
 };
 
 WalletFactory.prototype.open = function(walletId, opts) {
@@ -141,11 +146,10 @@ WalletFactory.prototype.open = function(walletId, opts) {
   this.storage._setPassphrase(opts.passphrase);
 
   var w = this.read(walletId);
- 
   if (w) {
+    this._checkVersion(w.version);
     w.store();
   }
-
   return w;
 };
 
@@ -162,16 +166,20 @@ WalletFactory.prototype.remove = function(walletId) {
   this.log('TODO: remove wallet contents');
 };
 
+WalletFactory.prototype.decodeSecret = function(secret) {
+  try {
+    return Wallet.decodeSecret(secret);
+  } catch (e) {
+    return false;
+  }
+}
+
 
 WalletFactory.prototype.joinCreateSession = function(secret, nickname, passphrase, cb) {
   var self = this;
 
-  var s;
-  try {
-    s=Wallet.decodeSecret(secret);
-  } catch (e) {
-    return cb('badSecret');
-  }
+  var s = self.decodeSecret(secret);
+  if (!s) return cb('badSecret');
   
   //Create our PrivateK
   var privateKey = new PrivateKey({ networkName: this.networkName });
@@ -183,8 +191,14 @@ WalletFactory.prototype.joinCreateSession = function(secret, nickname, passphras
   self.network.cleanUp();
   self.network.start(opts, function() {
     self.network.connectTo(s.pubKey);
+
+    // This is a hack to reconize if the connection was rejected or the peer wasn't there.
+    var connectedOnce = false;
+    self.network.on('connected', function(sender, data) {
+      connectedOnce = true;
+    });
     self.network.on('onlyYou', function(sender, data) {
-      return cb('joinError');
+      return cb(connectedOnce ? 'walletFull' : 'joinError');
     });
     self.network.on('data', function(sender, data) {
       if (data.type ==='walletId') {
@@ -193,7 +207,7 @@ WalletFactory.prototype.joinCreateSession = function(secret, nickname, passphras
         data.opts.passphrase = passphrase;
         data.opts.id = data.walletId;
         var w = self.create(data.opts);
-        w.firstCopayerId = s.pubKey;
+        w.seedCopayer(s.pubKey);
         return cb(null, w);
       }
     });

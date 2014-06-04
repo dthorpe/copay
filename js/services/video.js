@@ -13,10 +13,18 @@ var Video = function() {
 Video.prototype.setOwnPeer = function(peer, wallet, cb) {
   var self = this;
 
-  navigator.getUserMedia({
+  var VWIDTH = 320;
+  var VHEIGHT = 320;
+  var constraints = {
     audio: true,
-    video: true
-  }, function(stream) {
+    video: {
+      mandatory: {
+        maxWidth: VWIDTH,
+        maxHeight: VHEIGHT,
+      }
+    }
+  };
+  navigator.getUserMedia(constraints, function(stream) {
     // This is called when user accepts using webcam
     self.localStream = stream;
     var online = wallet.getOnlinePeerIDs();
@@ -61,11 +69,9 @@ Video.prototype._addCall = function(mediaConnection, cb) {
   });
 
   mediaConnection.on('close', function() {
-    console.log('Media connection closed with ' + peerID);
     cb(true, peerID, null); // ask to stop video streaming in UI
   });
   mediaConnection.on('error', function(e) {
-    console.log('Media connection error with ' + peerID);
     cb(e, peerID, null);
   });
   this.mediaConnections[peerID] = mediaConnection;
@@ -85,4 +91,4 @@ Video.prototype.close = function() {
   this.mediaConnections = {};
 };
 
-angular.module('copay.video').value('video', new Video());
+angular.module('copayApp.services').value('video', new Video());

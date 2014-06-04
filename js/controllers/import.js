@@ -1,12 +1,25 @@
 'use strict';
 
-angular.module('copay.import').controller('ImportController',
+angular.module('copayApp.controllers').controller('ImportController',
   function($scope, $rootScope, walletFactory, controllerUtils, Passphrase) {
     $scope.title = 'Import a backup';
     var reader = new FileReader();
     var _importBackup = function(encryptedObj) {
       Passphrase.getBase64Async($scope.password, function(passphrase){
-        $rootScope.wallet = walletFactory.fromEncryptedObj(encryptedObj, passphrase);
+        var w, errMsg;
+        try {
+          w = walletFactory.fromEncryptedObj(encryptedObj, passphrase);
+        } catch(e) {
+          errMsg = e.message;
+        }
+        if (!w) {
+          $scope.loading = false;
+          $rootScope.$flashMessage = { message: errMsg || 'Wrong password', type: 'error'};
+          $rootScope.$digest();
+          return;
+        }
+        $rootScope.wallet = w;
+
         controllerUtils.startNetwork($rootScope.wallet);
       });
     };
@@ -23,7 +36,8 @@ angular.module('copay.import').controller('ImportController',
 
     $scope.import = function(form) {
       if (form.$invalid) {
-        $rootScope.flashMessage = { message: 'There is an error in the form. Please, try again', type: 'error'};
+        $scope.loading = false;
+        $rootScope.$flashMessage = { message: 'There is an error in the form. Please, try again', type: 'error'};
         return;
       }
 
@@ -32,7 +46,9 @@ angular.module('copay.import').controller('ImportController',
       var password = form.password.$modelValue;
 
       if (!backupFile && !backupText) {
-        $rootScope.flashMessage = { message: 'Please, select your backup file or paste the text', type: 'error'};
+        $scope.loading = false;
+        $rootScope.$flashMessage = { message: 'Please, select your backup file or paste the text', type: 'error'};
+        $scope.loading = false;
         return;
       }
 

@@ -3,29 +3,36 @@
 
 var imports     = require('soop').imports();
 var bitcore     = require('bitcore');
-var BIP32       = bitcore.BIP32;
+var HK          = bitcore.HierarchicalKey;
 var WalletKey   = bitcore.WalletKey;
 var networks    = bitcore.networks;
 var util        = bitcore.util;
-var PublicKeyRing  = require('./PublicKeyRing');
+var Structure   = require('./Structure');
 
 function PrivateKey(opts) {
   opts = opts || {};
   this.network = opts.networkName === 'testnet' ? 
     networks.testnet : networks.livenet;
   var init = opts.extendedPrivateKeyString || this.network.name;
-  this.bip = opts.BIP32 || new BIP32(init);
+  this.bip = opts.HK || new HK(init);
   this.privateKeyCache = opts.privateKeyCache || {};
 };
 
 PrivateKey.prototype.getId = function() {
   if (!this.id) {
-    var path = PublicKeyRing.ID_BRANCH;
-    var bip32 = this.bip.derive(path);
-    this.id= bip32.eckey.public.toString('hex');
+    var path = Structure.IdFullBranch;
+    var idhk = this.bip.derive(path);
+    this.id= idhk.eckey.public.toString('hex');
   }
   return this.id;
 };
+
+PrivateKey.prototype.deriveBIP45Branch = function() {
+  if (!this.bip45Branch) {
+    this.bip45Branch = this.bip.derive(Structure.BIP45_PUBLIC_PREFIX);
+  }
+  return this.bip45Branch;
+}
 
 PrivateKey.fromObj = function(obj) {
   return new PrivateKey(obj);
@@ -47,33 +54,42 @@ PrivateKey.prototype.getExtendedPrivateKeyString = function() {
   return this.bip.extendedPrivateKeyString();
 };
 
-PrivateKey.prototype._getBIP32 = function(path) {
+PrivateKey.prototype._getHK = function(path) {
   if (typeof path === 'undefined') {
     return this.bip;
   }
   return this.bip.derive(path);
 };
 
-PrivateKey.prototype.get = function(index,isChange) {
-  var path = PublicKeyRing.Branch(index, isChange);
+PrivateKey.prototype.getForPaths = function(paths) {
+  return paths.map(this.getForPath.bind(this));
+};
+
+PrivateKey.prototype.getForPath = function(path) {
   var pk = this.privateKeyCache[path];
   if (!pk) {
-    var derivedBIP32 =  this._getBIP32(path);
-    pk = this.privateKeyCache[path] = derivedBIP32.eckey.private.toString('hex');
-  } else {
-    //console.log('cache hit!');
+    var derivedHK =  this._getHK(path);
+    pk = this.privateKeyCache[path] = derivedHK.eckey.private.toString('hex');
   }
   var wk = new WalletKey({network: this.network});
   wk.fromObj({priv: pk});
   return wk;
 };
 
-PrivateKey.prototype.getAll = function(addressIndex, changeAddressIndex) {
+PrivateKey.prototype.get = function(index,isChange) {
+  var path = Structure.FullBranch(index, isChange);
+  return this.getForPath(path);
+};
+
+PrivateKey.prototype.getAll = function(receiveIndex, changeIndex) {
+  if (typeof receiveIndex === 'undefined' || typeof changeIndex === 'undefined')
+    throw new Error('Invalid parameters');
+
   var ret = [];
-  for(var i=0;i<addressIndex; i++) {
+  for(var i=0;i<receiveIndex; i++) {
     ret.push(this.get(i,false));
   }
-  for(var i=0; i<changeAddressIndex; i++) {
+  for(var i=0; i<changeIndex; i++) {
     ret.push(this.get(i,true));
   }
   return ret;

@@ -1,6 +1,6 @@
 'use strict';
 
-angular.module('copay.directives')
+angular.module('copayApp.directives')
   .directive('validAddress', [
 
     function() {
@@ -23,14 +23,14 @@ angular.module('copay.directives')
       };
     }
   ])
-  .directive('notification', ['$rootScope',
+  .directive('notification', ['$rootScope', 
     function($rootScope) {
       return {
         restrict: 'A',
         link: function(scope, element, attrs, ctrl) {
           setTimeout(function() {
             scope.$apply(function() {
-              $rootScope.flashMessage = {};
+              $rootScope.$flashMessage = {};
             });
           }, 5000);
         }
@@ -64,16 +64,32 @@ angular.module('copay.directives')
       };
     }
   ])
+  .directive('walletSecret', ['walletFactory',
+    function(walletFactory) {
+      return {
+        require: 'ngModel',
+        link: function(scope, elem, attrs, ctrl) {
+          var validator = function(value) {
+            ctrl.$setValidity('walletSecret',  Boolean(walletFactory.decodeSecret(value)));
+            return value;
+          };
+
+          ctrl.$parsers.unshift(validator);
+        }
+      };
+    }
+  ])
   .directive('loading', function() {
     return {
       restrict: 'A',
-      link: function(scope, element, attr) {
+      link: function($scope, element, attr) {
         var a = element.html();
         var text = attr.loading;
-        scope.$watch('loading', function(val) {
-          if (val) {
+        element.on('click', function() {
             element.html('<i class="size-21 fi-bitcoin-circle icon-rotate spinner"></i> ' + text + '...');
-          } else {
+        });
+        $scope.$watch('loading', function(val) {
+          if (!val) {
             element.html(a);
           }
         });
@@ -89,18 +105,91 @@ angular.module('copay.directives')
         });
       }
     }
-  }).directive('avatar', function($rootScope) {
+  })
+  .directive('avatar', function($rootScope, controllerUtils) {
     return {
       link: function(scope, element, attrs) {
         var peer = JSON.parse(attrs.peer)
         var peerId = peer.peerId;
         var nick = peer.nick;
         element.addClass('video-small');
-        element.attr('title', peerId + (peerId == $rootScope.wallet.network.peerId ? ' (You)' : ''));
-        var muted = $rootScope.getVideoMutedStatus(peerId);
+        var muted = controllerUtils.getVideoMutedStatus(peerId);
         if (muted) {
           element.attr("muted", true);
         }
       }
     }
+  })
+  .directive('checkStrength', function() {
+    return {
+      replace: false,
+      restrict: 'EACM',
+      require: 'ngModel',
+      link: function(scope, element, attrs) {
+        var _grep = function(elems, callback, invert) {
+          var callbackInverse,
+              matches = [],
+              i = 0,
+              length = elems.length,
+              callbackExpect = !invert;
+
+          // Go through the array, only saving the items
+          // that pass the validator function
+          for (; i < length; i++) {
+            callbackInverse = !callback(elems[i], i);
+            if (callbackInverse !== callbackExpect) {
+              matches.push(elems[i]);
+            }
+          }
+
+          return matches;
+        };
+
+        var strength = {
+          messages: ['too weak', 'weak', 'weak', 'medium', 'strong'],
+          colors: ['#c0392b', '#e74c3c', '#d35400', '#f39c12', '#27ae60'],
+          mesureStrength: function (p) {
+            var _force = 0;
+            var _regex = /[$-/:-?{-~!"^_`\[\]]/g;
+            var _lowerLetters = /[a-z]+/.test(p);
+            var _upperLetters = /[A-Z]+/.test(p);
+            var _numbers = /[0-9]+/.test(p);
+            var _symbols = _regex.test(p);
+            var _flags = [_lowerLetters, _upperLetters, _numbers, _symbols];
+            var _passedMatches = _grep(_flags, function (el) { return el === true; }).length;
+            
+            _force += 2 * p.length + ((p.length >= 10) ? 1 : 0);
+            _force += _passedMatches * 10;
+            
+            // penality (short password)
+            _force = (p.length <= 6) ? Math.min(_force, 10) : _force;
+            
+            // penality (poor variety of characters)
+            _force = (_passedMatches == 1) ? Math.min(_force, 10) : _force;
+            _force = (_passedMatches == 2) ? Math.min(_force, 20) : _force;
+            _force = (_passedMatches == 3) ? Math.min(_force, 40) : _force;
+            return _force;
+          },
+          getColor: function (s) {
+            var idx = 0;
+            
+            if (s <= 10) { idx = 0; }
+            else if (s <= 20) { idx = 1; }
+            else if (s <= 30) { idx = 2; }
+            else if (s <= 40) { idx = 3; }
+            else { idx = 4; }
+            
+            return { idx: idx + 1, col: this.colors[idx], message: this.messages[idx] };
+          }
+        };
+
+        scope.$watch(attrs.ngModel, function (newValue, oldValue) {
+          if (newValue && newValue !== '') {
+            var c = strength.getColor(strength.mesureStrength(newValue));
+            element.css({ 'border-color': c.col });
+            scope[attrs.checkStrength] = c.message;
+          }
+        });
+      }
+    };
   });

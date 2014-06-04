@@ -1,0 +1,12 @@
+{
+  "name": "Copay",
+  "version": "APP_VERSION",
+  "app": {
+    "launch":{
+      "local_path": "index.html"
+    }
+  },
+  "icons": {
+    "128": "icon.png"
+  }
+}

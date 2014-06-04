@@ -40,6 +40,13 @@ lib/*
 !lib/socket.io.js
 
 js/copayBundle.js
-config.js
-webapp
 
+webapp/copay-webapp
+webapp/download
+chrome/copay-chrome-extension
+chrome/copay-chrome-extension.zip
+firefox/firefox-addon
+version.js
+
+android/package
+android/*.apk

@@ -7,7 +7,6 @@ var Transaction        = bitcore.Transaction;
 var buffertools    = bitcore.buffertools;
 var WalletKey    = bitcore.WalletKey;
 var Key    = bitcore.Key;
-var BIP32    = bitcore.BIP32;
 var bignum         = bitcore.bignum;
 var Script         = bitcore.Script;
 var Builder     = bitcore.TransactionBuilder;
@@ -43,7 +42,7 @@ var createPKR = function (bip32s) {
   for(var i=0; i<5; i++) {
     if (bip32s) {
       var b=bip32s[i];
-      w.addCopayer(b?b.getExtendedPublicKeyString():null);
+      w.addCopayer(b?b.deriveBIP45Branch().extendedPublicKeyString():null);
     }
     else 
       w.addCopayer();
@@ -67,13 +66,12 @@ var vopts =  {
 
 describe('TxProposals model', function() {
 
-
   it('verify TXs', function (done) {
 
     var priv = new PrivateKey(config);
     var priv2 = new PrivateKey(config);
     var priv3 = new PrivateKey(config);
-   var ts = Date.now();
+    var ts = Date.now();
     var isChange=0; 
     var index=0; 
     var pkr = createPKR([priv, priv2,  priv3]);
@@ -96,8 +94,8 @@ describe('TxProposals model', function() {
     var b = w.txps[k].builder;
     var tx = b.build();
     tx.isComplete().should.equal(false);
-    b.sign( priv2.getAll(pkr.addressIndex, pkr.changeAddressIndex) );
-    b.sign( priv3.getAll(pkr.addressIndex, pkr.changeAddressIndex) );
+    b.sign(priv2.getAll(pkr.indexes.getReceiveIndex(), pkr.indexes.getChangeIndex()) );
+    b.sign(priv3.getAll(pkr.indexes.getReceiveIndex(), pkr.indexes.getChangeIndex()) );
     tx = b.build();
     tx.isComplete().should.equal(true);
 
@@ -143,7 +141,7 @@ describe('TxProposals model', function() {
 
     var signRet;  
     if (priv) {
-      b.sign( priv.getAll(pkr.addressIndex, pkr.changeAddressIndex) );
+      b.sign( priv.getAll(pkr.indexes.getReceiveIndex(), pkr.indexes.getChangeIndex()) );
     }
     var me = {};
     if (priv) me[priv.id] = Date.now();

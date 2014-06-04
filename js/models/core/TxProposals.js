@@ -10,9 +10,6 @@ var Builder     = bitcore.TransactionBuilder;
 var Script      = bitcore.Script;
 var buffertools = bitcore.buffertools;
 
-var Storage     = imports.Storage || require('../storage/Base');
-var storage     = Storage.default();
-
 function TxProposal(opts) {
   this.creator      = opts.creator;
   this.createdTs   = opts.createdTs;
@@ -22,6 +19,7 @@ function TxProposal(opts) {
   this.builder  = opts.builder;
   this.sentTs = opts.sentTs || null;
   this.sentTxid = opts.sentTxid || null;
+  this.inputChainPaths = opts.inputChainPaths || [];
 }
 
 TxProposal.prototype.toObj = function() {
@@ -72,10 +70,17 @@ TxProposals.fromObj = function(o) {
   return ret;
 };
 
+TxProposals.prototype.getNtxids = function() {
+  return Object.keys(this.txps);
+};
 
-TxProposals.prototype.toObj = function() {
+TxProposals.prototype.toObj = function(onlyThisNtxid) {
   var ret = [];
   for(var id in this.txps){
+
+    if (onlyThisNtxid && id != onlyThisNtxid)
+      continue;
+
     var t = this.txps[id];
     if (!t.sent)
       ret.push(t.toObj());
@@ -86,7 +91,6 @@ TxProposals.prototype.toObj = function() {
     networkName: this.network.name,
   };
 };
-
 
 TxProposals.prototype._startMerge = function(myTxps, theirTxps) {
   var fromUs=0, fromTheirs=0, merged =0;
@@ -180,8 +184,9 @@ TxProposals.prototype._mergeBuilder = function(myTxps, theirTxps, mergeInfo) {
 };
 
 TxProposals.prototype.add = function(data) {
-  var id = data.builder.build().getNormalizedHash().toString('hex');
-  this.txps[id] = new TxProposal(data);
+  var ntxid = data.builder.build().getNormalizedHash().toString('hex');
+  this.txps[ntxid] = new TxProposal(data);
+  return ntxid;
 };
 
 
@@ -191,12 +196,20 @@ TxProposals.prototype.setSent = function(ntxid,txid) {
 };
 
 
-TxProposals.prototype.getTxProposal = function(ntxid) {
+TxProposals.prototype.getTxProposal = function(ntxid, copayers) {
   var txp = this.txps[ntxid];
   var i = JSON.parse(JSON.stringify(txp));
   i.builder = txp.builder;
   i.ntxid = ntxid;
   i.peerActions = {};
+
+  if (copayers) {
+    for(var j=0; j < copayers.length; j++) {
+      var p = copayers[j];
+      i.peerActions[p] = {};
+    }
+  }
+
   for(var p in txp.seenBy){
     i.peerActions[p]={seen: txp.seenBy[p]};
   }
